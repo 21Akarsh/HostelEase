@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+body {
+    background-color: rgb(243 244 246 );
+}
+
+* {
+    font-family: Lato;
+}
+
+.clip-path-custom {
+    clip-path: ellipse(50% 60% at center);
+  }
+  
+
+
+
