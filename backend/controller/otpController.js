@@ -1,9 +1,9 @@
 import bcrypt from "bcrypt";
-import redis from "redis";
-import { pool } from "../db.js"; 
+import { pool } from "../db.js";
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
-import client from "../redisClient.js";
+import client from "../redisClient.js"; 
+
 dotenv.config();
 
 const transporter = nodemailer.createTransport({
@@ -11,14 +11,12 @@ const transporter = nodemailer.createTransport({
   auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
 });
 
-/**
- * Send OTP (Uses PostgreSQL to Check User and Redis for OTP)
- */
+
+// send otp(redis)
 export const sendOtp = async (req, res) => {
   const { email } = req.body;
 
   try {
-    // Check if user exists in PostgreSQL
     const { rowCount } = await pool.query("SELECT user_id FROM users WHERE email = $1", [email]);
 
     if (rowCount === 0) {
@@ -28,10 +26,10 @@ export const sendOtp = async (req, res) => {
     
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    
+    // 5 mins expiration
     await client.setEx(email, 300, otp);
 
-  
+    // Send OTP via email
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: email,
@@ -46,19 +44,17 @@ export const sendOtp = async (req, res) => {
   }
 };
 
-
-// *  Verify OTP (Checks from Redis)
-
+// verify otp
 export const verifyOtp = async (req, res) => {
   const { email, otp } = req.body;
 
   try {
-    // Retrieve OTP from Redis
+
     const storedOtp = await client.get(email);
 
     if (storedOtp === otp) {
-      await client.del(email); // Delete OTP after verification
-      res.json({ message: "OTP verified successfully!" });
+      await client.del(email);
+      res.json({ message: "OTP verified successfully! You can now reset your password." });
     } else {
       res.status(400).json({ message: "Invalid or expired OTP!" });
     }
@@ -69,23 +65,21 @@ export const verifyOtp = async (req, res) => {
 };
 
 
-// 3. Reset Password (Uses PostgreSQL to Update Password)
-
+// reset password
 export const resetPassword = async (req, res) => {
   const { email, newPassword } = req.body;
 
   try {
-    // Check if user exists in PostgreSQL
     const { rowCount } = await pool.query("SELECT user_id FROM users WHERE email = $1", [email]);
 
     if (rowCount === 0) {
       return res.status(404).json({ message: "User not found!" });
     }
 
-    // Hash the new password
+   
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-    // Update password in PostgreSQL
+    
     await pool.query("UPDATE users SET password = $1 WHERE email = $2", [hashedPassword, email]);
 
     res.json({ message: "Password reset successful!" });
